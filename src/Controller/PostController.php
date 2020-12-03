@@ -5,28 +5,22 @@ namespace App\Controller;
 use App\Entity\Post;
 use App\Form\PostType;
 use App\Repository\PostRepository;
+use App\Services\FileUploader;
+use App\Services\Notification;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\Session\SessionInterface;
+
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\HttpFoundation\Session\Session;
+
 
 /**
  * @Route("/post", name="post.")
  */
 class PostController extends AbstractController
 {
-
-    private $session;
-
-    public function __construct(SessionInterface $session)
-    {
-        $this->session = $session;
-        $session1 = new Session();
-        $session1->start();
-    }
 
     /**
      * @Route("/", name="index")
@@ -48,9 +42,11 @@ class PostController extends AbstractController
     /**
      * @Route("/create", name="create")
      * @param Request $request
+     * @param FileUploader $fileUploader
+     * @param Notification $notification
      * @return Response
      */
-    public function create(Request $request)
+    public function create(Request $request, FileUploader $fileUploader, Notification $notification)
     {
         // create a new post with a title
         $post = new Post();
@@ -58,13 +54,22 @@ class PostController extends AbstractController
         $form = $this->createForm(PostType::class, $post);
 
         $form->handleRequest($request);
+        $form->getErrors();
 
         if ($form->isSubmitted()) {
             //entity manager
 
             $em = $this->getDoctrine()->getManager();
-            $em->persist($post);
-            $em->flush();
+
+            /** @var UploadedFile $file */
+            $file = $request->files->get('post')['attachment'];
+            if ($file) {
+                $filename = $fileUploader->uploadFile($file);
+                $post->setImage($filename);
+                $em->persist($post);
+                $em->flush();
+            }
+
 
             return $this->redirect($this->generateUrl('post.index'));
         }
